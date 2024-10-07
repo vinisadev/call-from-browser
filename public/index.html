@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Twilio Call from Browser</title>
+    <script src="https://sdk.twilio.com/js/client/releases/1.14.0/twilio.min.js"></script>
+    <style>
+      :root {
+        --primary-color: #0a84ff;
+        --secondary-color: #30d158;
+        --background-color: #f2f2f7;
+        --text-color: #1c1c1e;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Seogoe UI', Roboto, Oxygen-Sans, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
+        line-height: 1.6;
+        color: var(--text-color);
+        background-color: var(--background-color);
+        padding: 20px;
+        max-width: 800px;
+        margin: 0 auto;
+      }
+
+      h1 {
+        color: var(--primary-color);
+        text-align: center;
+        margin-bottom: 30px;
+      }
+
+      #callButton {
+        display: block;
+        width: 200px;
+        height: 50px;
+        margin: 20px auto;
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        border-radius: 25px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+      }
+
+      #callButton:hover {
+        background-color: #0071e3;
+      }
+
+      #callButton:disabled {
+        background-color: #999;
+        cursor: not-allowed;
+      }
+
+      #status, #log {
+        background-color: white;
+        border-radius: 10px;
+        padding: 15px;
+        margin-top: 20px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+
+      #status {
+        font-weight: bold;
+        text-align: center;
+        color: var(--secondary-color);
+      }
+
+      #log {
+        height: 200px;
+        overflow-y: auto;
+        font-family: monospace;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      }
+
+      @media (max-width: 600px) {
+        body {
+          padding: 10px;
+        }
+
+        #callButton {
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <button id="callButton" disabled>Call Twilio Number</button>
+    <div id="status"></div>
+    <div id="log"></div>
+
+    <script>
+      const callButton = document.getElementById('callButton');
+      const statusDiv = document.getElementById('status');
+      const logDiv = document.getElementById('log');
+      let device;
+
+      // Replace with your Twilio number
+      const twilioPhoneNumber = '+12223334444';
+
+      function log(message) {
+        console.log(message);
+        logDiv.innerHTML += message + '<br>';
+      }
+
+      // Function to fetch token from server
+      async function getToken() {
+        try {
+          const response = await fetch('/token');
+          const data = await response.json();
+          log('Token fetched successfully');
+          log('Token: ' + data.token); // Log the token for debugging
+          return data.token;
+        } catch (error) {
+          log('Error fetching token: ' + error.message);
+          throw error;
+        }
+      }
+
+      // Initialize Twilio Device
+      async function setupDevice() {
+        try {
+          const token = await getToken();
+
+          if (device) {
+            device.destroy();
+          }
+
+          device = new Twilio.Device();
+
+          device.on('ready', function() {
+            log('Device is ready');
+            statusDiv.textContext = 'Ready to make calls';
+            callButton.disbaled = false;
+          });
+
+          device.on('error', function(error) {
+            log('Device error: ' + error.message);
+            statusDiv.textContent = 'Error: ' + error.message;
+            callButton.disabled = false;
+          });
+
+          device.on('connect', function(conn) {
+            log('Call established');
+            statusDiv.textContent = 'Successfully established call';
+            callButton.disabled = true;
+          });
+
+          device.on('disconnect', function(conn) {
+            log('Call ended');
+            statusDiv.textContent = 'Call ended';
+            callButton.disabled = false;
+          });
+
+          log('Attempt to setup device...');
+          await device.setup(token, {
+            debug: true,
+            enableRingingState: true
+          });
+          log('Device setup successfully');
+        } catch (error) {
+          log('Error setting up device: ' + error.message);
+        }
+      }
+
+      // Set up device when page loads
+      window.onload = setupDevice;
+
+      callButton.onclick = async function() {
+        log('Initialize call...');
+        try {
+          if (!device) {
+            log('Device not initialized, setting up new device');
+            await setupDevice();
+          }
+
+          if (!device) {
+            throw new Error('Failed to initialize device');
+          }
+
+          let params = {
+            To: twilioPhoneNumber
+          };
+
+          await device.connect(params);
+        } catch (error) {
+          log('Error making call: ' + error.message);
+        }
+      };
+    </script>
+  </body>
+</html>
